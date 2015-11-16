@@ -11,6 +11,7 @@ import ru.futurobot.longimageswithglide.misc.Size
 
 /**
  * Created by Alexey on 15.11.15.
+ * ImageView that can handle displaying long images in ScrollView
  */
 public class LongImageView : ImageView {
 
@@ -36,6 +37,7 @@ public class LongImageView : ImageView {
     var scrollObserver: ViewTreeObserver.OnScrollChangedListener = object : ViewTreeObserver.OnScrollChangedListener {
         override fun onScrollChanged() {
             getLocalVisibleRect(localVisibleRect)
+            //Weird bug here localVisibleRect.bottom > height. For some reason getLocalVisibleRect set wrong size to rectangle if it not visible and scrolls down
             if (localVisibleRect.top >= localVisibleRect.bottom || localVisibleRect.bottom < 0 || localVisibleRect.bottom > height) {
                 Log.i("LongImageView onScrollChanged${hashCode()}", "invisible")
             } else {
