@@ -59,6 +59,11 @@ public class LongImageDrawable(context: Context, url: String, viewSize: Size, im
         imageTiles.forEach { tile -> Log.d(TAG, "\tTile: $tile") }
     }
 
+    public fun onVisibleRectUpdated(visibleRect : Rect) {
+        //Check tile visibility
+        //Add visibility no next invisible tile at the bottom and at the top
+    }
+
     private fun newPaint(color: Int): Paint {
         val paint = Paint()
         paint.color = color

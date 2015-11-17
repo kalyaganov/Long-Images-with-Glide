@@ -31,6 +31,8 @@ public class LongImageView : ImageView {
      * Cached view`s visible rect on the screen
      */
     private var localVisibleRect: Rect = Rect()
+    private var longImageDrawable : LongImageDrawable?
+
     /**
      * Image view scroll observer
      */
@@ -42,7 +44,7 @@ public class LongImageView : ImageView {
                 Log.i("LongImageView onScrollChanged${hashCode()}", "invisible")
             } else {
                 Log.i("LongImageView onScrollChanged${hashCode()}", "Local visible rect: $localVisibleRect ${imgData?.url?.hashCode()} w:${this@LongImageView.width} h:$height")
-                //TODO: Pass visible rect to drawable
+                longImageDrawable?.onVisibleRectUpdated(localVisibleRect)
             }
         }
     }
@@ -95,6 +97,7 @@ public class LongImageView : ImageView {
         if (imgData != null) {
             //image must have both width and height size
             if (!imgData!!.size.hasBothSize()) {
+                setImageDrawable(null)
                 //check if we are getting this image size right now and get size
                 if (sizeDetectorTask == null || sizeDetectorTask!!.url != imgData!!.url || !sizeDetectorTask!!.isRunning()) {
                     sizeDetectorTask = SizeDetector(context, imgData!!.url, sizeDetectorCallback)
@@ -106,7 +109,8 @@ public class LongImageView : ImageView {
                 val lparams = layoutParams
                 val imgRatio = this.width / imgData!!.size.width.toFloat()
                 lparams.height = (imgData!!.size.height * imgRatio).toInt()
-                setImageDrawable(LongImageDrawable(context, imgData!!.url, Size(this.width, lparams.height), imgData!!.size))
+                longImageDrawable = LongImageDrawable(context, imgData!!.url, Size(this.width, lparams.height), imgData!!.size)
+                setImageDrawable(longImageDrawable)
                 //Sources https://github.com/bumptech/glide/issues/700
                 layoutParams = lparams  //update layout
             }
