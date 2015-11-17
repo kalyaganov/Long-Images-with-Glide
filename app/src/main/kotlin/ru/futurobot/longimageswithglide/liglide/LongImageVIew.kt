@@ -12,6 +12,7 @@ import ru.futurobot.longimageswithglide.misc.Size
 /**
  * Created by Alexey on 15.11.15.
  * ImageView that can handle displaying long images in ScrollView
+ * See https://github.com/bumptech/glide/issues/700
  */
 public class LongImageView : ImageView {
 
@@ -31,7 +32,7 @@ public class LongImageView : ImageView {
      * Cached view`s visible rect on the screen
      */
     private var localVisibleRect: Rect = Rect()
-    private var longImageDrawable : LongImageDrawable?
+    private var longImageDrawable : LongImageDrawable? = null
 
     /**
      * Image view scroll observer
@@ -41,9 +42,9 @@ public class LongImageView : ImageView {
             getLocalVisibleRect(localVisibleRect)
             //Weird bug here localVisibleRect.bottom > height. For some reason getLocalVisibleRect set wrong size to rectangle if it not visible and scrolls down
             if (localVisibleRect.top >= localVisibleRect.bottom || localVisibleRect.bottom < 0 || localVisibleRect.bottom > height) {
-                Log.i("LongImageView onScrollChanged${hashCode()}", "invisible")
+                //Log.i("LongImageView onScrollChanged${hashCode()}", "invisible")
             } else {
-                Log.i("LongImageView onScrollChanged${hashCode()}", "Local visible rect: $localVisibleRect ${imgData?.url?.hashCode()} w:${this@LongImageView.width} h:$height")
+                //Log.i("LongImageView onScrollChanged${hashCode()}", "Local visible rect: $localVisibleRect ${imgData?.url?.hashCode()} w:${this@LongImageView.width} h:$height")
                 longImageDrawable?.onVisibleRectUpdated(localVisibleRect)
             }
         }
@@ -97,6 +98,7 @@ public class LongImageView : ImageView {
         if (imgData != null) {
             //image must have both width and height size
             if (!imgData!!.size.hasBothSize()) {
+                longImageDrawable = null
                 setImageDrawable(null)
                 //check if we are getting this image size right now and get size
                 if (sizeDetectorTask == null || sizeDetectorTask!!.url != imgData!!.url || !sizeDetectorTask!!.isRunning()) {
@@ -111,7 +113,6 @@ public class LongImageView : ImageView {
                 lparams.height = (imgData!!.size.height * imgRatio).toInt()
                 longImageDrawable = LongImageDrawable(context, imgData!!.url, Size(this.width, lparams.height), imgData!!.size)
                 setImageDrawable(longImageDrawable)
-                //Sources https://github.com/bumptech/glide/issues/700
                 layoutParams = lparams  //update layout
             }
         }

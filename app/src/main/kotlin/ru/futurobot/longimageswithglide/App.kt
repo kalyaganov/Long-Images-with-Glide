@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.graphics.Point
 import android.os.Build
 import android.view.WindowManager
+import com.bumptech.glide.Glide
 import ru.futurobot.longimageswithglide.misc.Size
 
 /**
@@ -14,13 +15,19 @@ import ru.futurobot.longimageswithglide.misc.Size
 public class App : Application() {
 
     companion object {
-        public var screenSize: Size = Size(0,0)
+        public var screenSize: Size = Size(0, 0)
             private set
     }
 
     override fun onCreate() {
         super.onCreate()
         screenSize = calculateScreenSize()
+
+        //Cleanup glide
+        Thread({
+            Glide.get(this).clearDiskCache()
+            Glide.get(this).clearMemory()
+        }).start()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration?) {

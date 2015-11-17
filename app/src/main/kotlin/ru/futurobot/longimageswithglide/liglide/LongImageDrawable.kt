@@ -21,6 +21,21 @@ public class LongImageDrawable(context: Context, url: String, viewSize: Size, im
     private val TAG: String = this@LongImageDrawable.javaClass.simpleName
     private var imageTiles: Array<ImageTile?> = emptyArray()
     private var fillPaints: Array<Paint> = arrayOf(newPaint(Color.RED), newPaint(Color.GREEN), newPaint(Color.BLUE))
+    private var tileBitmapReadyCallback: ImageTile.BitmapReadyCallback = object : ImageTile.BitmapReadyCallback {
+        override fun onReady(tile: ImageTile) {
+            bitmapWasReady = true
+            if (tile.allowDrawFlag && !isInUpdateCycle) {
+                invalidateSelf()    //redraw self
+            }
+        }
+    }
+    private var isInUpdateCycle: Boolean = false
+    private var bitmapWasReady: Boolean = false
+
+    private var grayPaint : Paint = Paint()
+    init {
+        grayPaint.color = Color.LTGRAY
+    }
 
     init {
         //Setup sizes
@@ -52,16 +67,38 @@ public class LongImageDrawable(context: Context, url: String, viewSize: Size, im
                 imageTiles[i] = ImageTile(context, url,
                         imageRegionRect = Rect(0, top, imageSize.width, bottom),
                         viewRect = Rect(0, (top * viewToImageRatio).toInt(), viewSize.width, (bottom * viewToImageRatio).toInt()),
-                        paint = fillPaints[i % fillPaints.size])
+                //        paint = fillPaints[i % fillPaints.size]
+                        paint = grayPaint)
+                imageTiles[i]!!.bitmapReadyCallback = tileBitmapReadyCallback
             }
         }
-        Log.d(TAG, "TILES:")
-        imageTiles.forEach { tile -> Log.d(TAG, "\tTile: $tile") }
+//        Log.d(TAG, "TILES:")
+//        imageTiles.forEach { tile -> Log.d(TAG, "\tTile: $tile") }
     }
 
-    public fun onVisibleRectUpdated(visibleRect : Rect) {
-        //Check tile visibility
-        //Add visibility no next invisible tile at the bottom and at the top
+    /**
+     * Check tile visibility
+     * Add visibility no next invisible tile at the bottom and at the top if need to
+     */
+    public fun onVisibleRectUpdated(visibleRect: Rect) {
+        isInUpdateCycle = true
+        bitmapWasReady = false
+        var needRedraw: Boolean = false
+        imageTiles.forEach { tile ->
+            if (Rect.intersects(tile!!.viewRect, visibleRect)) {
+                needRedraw = needRedraw || tile.allowDrawFlag == false
+                if(tile.allowDrawFlag == false) {
+                    tile.loadBitmap()
+                }
+                tile.allowDrawFlag = true
+            } else {
+                tile.allowDrawFlag = false
+            }
+        }
+        if (needRedraw || bitmapWasReady) {
+            invalidateSelf()
+        }
+        isInUpdateCycle = false
     }
 
     private fun newPaint(color: Int): Paint {
@@ -115,61 +152,77 @@ public class LongImageDrawable(context: Context, url: String, viewSize: Size, im
  * Handle image region loading and proper drawing on canvas
  */
 private data class ImageTile(val context: Context, val url: String, val viewRect: Rect, val imageRegionRect: Rect, val paint: Paint) {
+    public var allowDrawFlag: Boolean = false
+    public var bitmapReadyCallback: BitmapReadyCallback? = null
     //Weak reference to bitmap. Some kind of little cache inside tile
     private var weakBitmap: WeakReference<Bitmap>? = null
+    private var bitmapRect: Rect = Rect()
+    private var debugPaint: Paint? = null
     //Glide loading target
     private var glideLoadingTarget: Target<Bitmap> = object : SimpleTarget<Bitmap>() {
         override fun onResourceReady(resource: Bitmap?, glideAnimation: GlideAnimation<in Bitmap>?) {
             weakBitmap = WeakReference<Bitmap>(resource)
+            bitmapRect.set(0, 0, resource!!.width, resource!!.height)
+            bitmapReadyCallback?.onReady(this@ImageTile)
         }
     }
+
+    init {
+        debugPaint = Paint()
+        debugPaint!!.color = Color.YELLOW
+    }
+
 
     /**
      * Tile drawing method
      */
     public fun draw(canvas: Canvas?) {
-        canvas?.drawRect(viewRect, paint)
+        if (allowDrawFlag) {
+            val bmp = weakBitmap?.get()
+            if (bmp != null) {
+                canvas!!.drawBitmap(bmp, bitmapRect, viewRect, null)
+            } else {
+                canvas!!.drawRect(viewRect, paint)
+            }
+        } else {
+            canvas!!.drawRect(viewRect, debugPaint)
+        }
     }
 
     /**
      * Request for load
      */
-    public fun load() {
-        Glide.with(context)
-                .load(url)
-                .asBitmap()
-                // overshoot a little so fitCenter uses width's ratio (see minPercentage)
-                .override(viewRect.width(), viewRect.height())
-                .fitCenter()
-                // Cannot use .imageDecoder, only decoder; see bumptech/glide#708
-                //.imageDecoder(new RegionStreamDecoder(context, rect))
-                .decoder(RegionImageVideoDecoder(context, imageRegionRect))
-                .cacheDecoder(RegionFileDecoder(context, imageRegionRect))
-                // Cannot use RESULT cache; see bumptech/glide#707
-                .diskCacheStrategy(DiskCacheStrategy.SOURCE)
-                .listener(object : RequestListener<String, Bitmap> {
-                    override fun onException(e: Exception?, model: String?, target: Target<Bitmap>?, isFirstResource: Boolean): Boolean {
-                        Log.e("GLIDE", "Loading image region failed with exception: $e\nTile: ${this@ImageTile}")
-                        return false
-                    }
+    public fun loadBitmap() {
+        if (weakBitmap?.get() == null) {
+            Glide.with(context)
+                    .load(url)
+                    .asBitmap()
+                    // overshoot a little so fitCenter uses width's ratio (see minPercentage)
+                    .override(viewRect.width(), viewRect.height())
+                    .fitCenter()
+                    // Cannot use .imageDecoder, only decoder; see bumptech/glide#708
+                    //.imageDecoder(new RegionStreamDecoder(context, rect))
+                    .decoder(RegionImageVideoDecoder(context, imageRegionRect))
+                    .cacheDecoder(RegionFileDecoder(context, imageRegionRect))
+                    // Cannot use RESULT cache; see bumptech/glide#707
+                    .diskCacheStrategy(DiskCacheStrategy.SOURCE)
+                    .listener(object : RequestListener<String, Bitmap> {
+                        override fun onException(e: Exception?, model: String?, target: Target<Bitmap>?, isFirstResource: Boolean): Boolean {
+                            Log.e("GLIDE", "Loading image region failed with exception: $e\nTile: ${this@ImageTile}")
+                            return false
+                        }
 
-                    override fun onResourceReady(resource: Bitmap?, model: String?, target: Target<Bitmap>?, isFromMemoryCache: Boolean, isFirstResource: Boolean): Boolean {
-                        Log.i("GLIDE", "Image region loaded and ready. Tile: ${this@ImageTile}")
-                        return false
-                    }
-                })
-                .into(glideLoadingTarget)
+                        override fun onResourceReady(resource: Bitmap?, model: String?, target: Target<Bitmap>?, isFromMemoryCache: Boolean, isFirstResource: Boolean): Boolean {
+                            Log.i("GLIDE", "Image region loaded and ready. Tile: ${this@ImageTile}")
+                            return false
+                        }
+                    })
+                    .into(glideLoadingTarget)
+
+        }
+    }
+
+    public interface BitmapReadyCallback {
+        fun onReady(tile: ImageTile)
     }
 }
-
-
-/**
- * DEBUG Image tile class.
- * Just fill rect with given paint
- */
-private data class DebugTile(val url: String, val viewRect: Rect, val imageRegionRect: Rect, val paint: Paint) {
-    fun draw(canvas: Canvas?) {
-        canvas?.drawRect(viewRect, paint)
-    }
-}
-
