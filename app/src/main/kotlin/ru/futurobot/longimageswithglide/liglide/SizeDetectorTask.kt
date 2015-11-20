@@ -2,17 +2,19 @@ package ru.futurobot.longimageswithglide.liglide
 
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.graphics.Point
 import android.os.AsyncTask
 import com.bumptech.glide.Glide
 import ru.futurobot.longimageswithglide.misc.Size
+import java.io.File
+import java.io.FileDescriptor
+import java.io.FileInputStream
 
 /**
  * Created by Alexey on 15.11.15.
  */
-class SizeDetector(val context: Context, val url: String, val callback: SizeDetector.Callback) : AsyncTask<Void, Void, Size>() {
+class SizeDetector(val context: Context, val url: String, val callback: SizeDetector.Callback) : AsyncTask<Void, Void, Pair<FileDescriptor, Size>>() {
 
-    override fun doInBackground(vararg params: Void?): Size? {
+    override fun doInBackground(vararg params: Void?): Pair<FileDescriptor, Size>? {
         try {
             var image = Glide.with(context)
                     .load(url)
@@ -22,22 +24,22 @@ class SizeDetector(val context: Context, val url: String, val callback: SizeDete
             var options = BitmapFactory.Options()
             options.inJustDecodeBounds = true
             BitmapFactory.decodeFile(image.absolutePath, options)
-            return Size(options.outWidth, options.outHeight)
+            return Pair<FileDescriptor, Size>(FileInputStream(image).fd, Size(options.outWidth, options.outHeight))
         } catch(ignore: Exception) {
             return null
         }
     }
 
-    override fun onPostExecute(result: Size?) {
+    override fun onPostExecute(result: Pair<FileDescriptor, Size>?) {
         if (result == null) {
             callback.failure()
         } else {
-            callback.success(url, result!!)
+            callback.success(result.first, url, result.second)
         }
     }
 
     interface Callback {
-        fun success(url: String, size: Size)
+        fun success(file: FileDescriptor, url: String, size: Size)
         fun failure()
     }
 

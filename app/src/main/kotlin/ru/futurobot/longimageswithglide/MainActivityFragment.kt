@@ -1,12 +1,12 @@
 package ru.futurobot.longimageswithglide
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.support.v4.app.Fragment
 import android.support.v7.widget.LinearLayoutManager
 import android.support.v7.widget.RecyclerView
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
 import android.widget.TextView
 import ru.futurobot.longimageswithglide.liglide.LongImageView
 import ru.futurobot.longimageswithglide.misc.Size
@@ -16,8 +16,22 @@ import ru.futurobot.longimageswithglide.misc.Size
  */
 class MainActivityFragment : Fragment() {
 
-    var recyclerView: RecyclerView? = null
-    var adapter: ImageAdapter? = null
+    private val KEY_CURRENT_MODE = "KEY_CURRENT_MODE"
+
+    private var recyclerView: RecyclerView? = null
+    private var adapter: ImageAdapter? = null
+    private var currentMode = R.id.glide_region_loader
+    private var sharedPrefs: SharedPreferences? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true)
+    }
+
+    override fun onAttach(context: Context?) {
+        super.onAttach(context)
+        sharedPrefs = context?.getSharedPreferences(context?.packageName, Context.MODE_PRIVATE)
+    }
 
     override fun onCreateView(inflater: LayoutInflater?, container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
@@ -26,17 +40,33 @@ class MainActivityFragment : Fragment() {
 
     override fun onViewCreated(view: View?, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        adapter = ImageAdapter()
+        currentMode = sharedPrefs!!.getInt(KEY_CURRENT_MODE, R.id.thread_region_loader)
+        adapter = ImageAdapter(currentMode)
         recyclerView = view!!.findViewById(R.id.recyclerView) as RecyclerView
         recyclerView!!.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false)
         recyclerView!!.adapter = adapter
         recyclerView!!.setHasFixedSize(true)
     }
 
+    override fun onCreateOptionsMenu(menu: Menu?, inflater: MenuInflater?) {
+        super.onCreateOptionsMenu(menu, inflater)
+        inflater?.inflate(R.menu.fragment_menu, menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
+        if (item?.itemId == R.id.glide_region_loader || item?.itemId == R.id.thread_region_loader) {
+            item!!.setChecked(true)
+            adapter?.decoderMode = item!!.itemId
+            adapter?.notifyDataSetChanged()
+            return true
+        }
+        return false
+    }
+
     /**
      * Recycler view image adapter
      */
-    private class ImageAdapter() : RecyclerView.Adapter<ViewHolder>() {
+    private class ImageAdapter(var decoderMode: Int) : RecyclerView.Adapter<ViewHolder>() {
         private val imgUrls = arrayOf(
                 "http://cs5.pikabu.ru/post_img/2015/11/14/5/1447482219_790545089.jpg",
                 "http://cs4.pikabu.ru/post_img/2015/11/14/6/1447491411_533566373.jpeg",
@@ -64,6 +94,7 @@ class MainActivityFragment : Fragment() {
             val item = imgUrls[position]
             holder!!.textView.text = if (item.size.hasBothSize()) "${item.url} (${item.size.width} x ${item.size.height})" else "${item.url}"
             holder!!.imageView.measureCallback = imageMeasureCallback
+            holder!!.imageView.regionLoader = if(decoderMode == R.id.glide_region_loader) LongImageView.REGION_LOADER_GLIDE else LongImageView.REGION_LOADER_THREAD
             //If we have size of image
             //That performs instant resize of image view
             holder!!.imageView.displayImage(item.url, item.size)

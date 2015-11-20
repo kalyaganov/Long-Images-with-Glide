@@ -41,6 +41,7 @@ abstract class RegionResourceDecoder<T>(val bitmapPool: BitmapPool, val region: 
         return javaClass.name + region
     }
 }
+
 /**
  * Region decoder for images and video
  */
@@ -52,6 +53,17 @@ class RegionImageVideoDecoder(context: Context, region: Rect) : RegionResourceDe
         } catch(ignore: Exception) {
             return BitmapRegionDecoder.newInstance(source.fileDescriptor.fileDescriptor, false)
         }
+    }
+
+}
+
+/**
+ * Prebuilded Region decoder for images and video
+ */
+class PrebuildedRegionImageVideoDecoder(context: Context, val decoder: BitmapRegionDecoder, region: Rect) : RegionResourceDecoder<ImageVideoWrapper>(context, region) {
+
+    override fun createDecoder(source: ImageVideoWrapper, width: Int, height: Int): BitmapRegionDecoder {
+        return decoder
     }
 
 }
